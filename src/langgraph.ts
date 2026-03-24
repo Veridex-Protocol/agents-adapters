@@ -184,6 +184,11 @@ export class LangGraphAdapter
       input: def.schema ? jsonSchemaToZod(def.schema) : undefined,
       safetyClass,
       execute: createStubExecutor(this.framework, def.name),
+      metadata: {
+        importedFrom: this.name,
+        originalName: def.name,
+        returnDirect: def.returnDirect,
+      },
     } as ToolContract;
   }
 }

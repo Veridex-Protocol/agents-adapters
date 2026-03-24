@@ -144,8 +144,14 @@ export class PydanticAIAdapter
       name,
       description: def.description ?? '',
       input: def.parametersSchema ? jsonSchemaToZod(def.parametersSchema) : undefined,
+      output: def.returnSchema,
       safetyClass,
       execute: createStubExecutor(this.framework, def.name),
+      metadata: {
+        importedFrom: this.name,
+        originalName: def.name,
+        retries: def.retries,
+      },
     } as ToolContract;
   }
 }

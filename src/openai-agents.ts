@@ -146,6 +146,11 @@ export class OpenAIAgentsAdapter
       input: fn.parameters ? jsonSchemaToZod(fn.parameters) : undefined,
       safetyClass,
       execute: createStubExecutor(this.framework, fn.name),
+      metadata: {
+        importedFrom: this.name,
+        originalName: fn.name,
+        sourceParameters: fn.parameters,
+      },
     } as ToolContract;
   }
 }

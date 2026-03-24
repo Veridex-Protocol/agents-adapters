@@ -4,6 +4,9 @@ import {
   LangGraphAdapter,
   PydanticAIAdapter,
   OpenAPIImporter,
+  OpenAIRuntimeBridge,
+  LangGraphRuntimeBridge,
+  PydanticAIRuntimeBridge,
   inferSafetyClass,
   jsonSchemaToZod,
 } from '../src';
@@ -264,6 +267,14 @@ describe('OpenAPIImporter', () => {
   const sampleSpec = {
     openapi: '3.0.0',
     info: { title: 'Pet Store', version: '1.0.0' },
+    components: {
+      schemas: {
+        Pet: {
+          type: 'object',
+          properties: { id: { type: 'string' }, name: { type: 'string' } },
+        },
+      },
+    },
     paths: {
       '/pets': {
         get: {
@@ -292,6 +303,15 @@ describe('OpenAPIImporter', () => {
           parameters: [
             { name: 'petId', in: 'path' as const, required: true, schema: { type: 'string' } },
           ],
+          responses: {
+            '200': {
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Pet' },
+                },
+              },
+            },
+          },
         },
         delete: {
           operationId: 'deletePet',
@@ -325,6 +345,16 @@ describe('OpenAPIImporter', () => {
     const { tools } = importer.importTools(sampleSpec);
     const getPet = tools.find((t) => t.name === 'getPet');
     expect(getPet?.input).toBeDefined();
+  });
+
+  it('resolves component refs into output schemas', () => {
+    const { tools } = importer.importTools(sampleSpec);
+    const getPet = tools.find((t) => t.name === 'getPet');
+    expect(getPet?.output).toEqual({
+      type: 'object',
+      properties: { id: { type: 'string' }, name: { type: 'string' } },
+    });
+    expect(getPet?.metadata).toBeDefined();
   });
 
   it('filters by tag', () => {
@@ -376,5 +406,99 @@ describe('AdapterConfig', () => {
     });
     const tool = adapter.importTool({ name: 'anything', description: 'test' });
     expect(tool.safetyClass).toBe('financial');
+  });
+});
+
+// ── Live Runtime Bridges ──
+
+describe('live runtime bridges', () => {
+  it('invokes an OpenAI Agents runtime through a live bridge', async () => {
+    const bridge = new OpenAIRuntimeBridge({
+      name: 'openai-support',
+      agent: { id: 'support-agent' },
+      runner: async (_agent, input) => ({
+        finalOutput: typeof input === 'string' ? `Handled: ${input}` : 'Handled thread',
+        history: [{ role: 'assistant', content: 'Handled' }],
+      }),
+    });
+
+    const result = await bridge.invoke({ prompt: 'help me' });
+    expect(result.success).toBe(true);
+    expect(result.output).toBe('Handled: help me');
+
+    const tool = bridge.asTool();
+    const toolResult = await tool.execute({
+      input: { prompt: 'hello' },
+      context: { runId: 'run', agentId: 'agent', turnIndex: 0 },
+    });
+    expect(toolResult.llmOutput).toBe('Handled: hello');
+  });
+
+  it('invokes a LangGraph deployment through the server API', async () => {
+    const fetchStub: typeof fetch = async (input, init) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.endsWith('/threads')) {
+        return new Response(JSON.stringify({ thread_id: 'thread_123' }), { status: 200 });
+      }
+      if (url.endsWith('/threads/thread_123/runs/wait')) {
+        const body = JSON.parse(String(init?.body));
+        expect(body.assistant_id).toBe('assistant_123');
+        return new Response(JSON.stringify({
+          values: {
+            messages: [
+              { role: 'assistant', content: [{ text: 'LangGraph completed the task' }] },
+            ],
+          },
+        }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
+    };
+
+    const bridge = new LangGraphRuntimeBridge({
+      name: 'langgraph-agent',
+      endpoint: 'http://langgraph.local',
+      assistantId: 'assistant_123',
+      fetch: fetchStub,
+    });
+
+    const result = await bridge.invoke({ prompt: 'summarize this' });
+    expect(result.success).toBe(true);
+    expect(result.output).toContain('LangGraph completed the task');
+  });
+
+  it('invokes a PydanticAI A2A endpoint through the live bridge', async () => {
+    const fetchStub: typeof fetch = async (_input, init) => {
+      const body = JSON.parse(String(init?.body));
+      expect(body.method).toBe('message/send');
+      return new Response(JSON.stringify({
+        jsonrpc: '2.0',
+        id: body.id,
+        result: {
+          status: { state: 'completed' },
+          output: { text: 'PydanticAI delivered a result' },
+        },
+      }), { status: 200 });
+    };
+
+    const bridge = new PydanticAIRuntimeBridge({
+      name: 'pydantic-agent',
+      endpoint: 'http://pydantic.local/a2a',
+      fetch: fetchStub,
+    });
+
+    const result = await bridge.invoke({ prompt: 'compute value' });
+    expect(result.success).toBe(true);
+    expect(result.output).toBe('PydanticAI delivered a result');
+
+    const handoff = bridge.asHandoffHandler();
+    const handoffResult = await handoff({
+      runId: 'run_1',
+      agentId: 'source_agent',
+      turnIndex: 0,
+      targetAgentId: 'pydantic-agent',
+      reason: 'Need external computation',
+    });
+    expect(handoffResult.success).toBe(true);
+    expect(handoffResult.output).toBe('PydanticAI delivered a result');
   });
 });

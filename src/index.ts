@@ -51,3 +51,19 @@ export type {
   OpenAPIParameter,
   OpenAPIImportOptions,
 } from './openapi';
+
+// ── Live Runtime Bridges ──
+export {
+  OpenAIRuntimeBridge,
+  LangGraphRuntimeBridge,
+  PydanticAIRuntimeBridge,
+} from './runtime-bridges';
+export type {
+  BridgeInvocation,
+  BridgeInvocationResult,
+  ExecutableAgentBridge,
+  BridgeToolOptions,
+  OpenAIRuntimeBridgeConfig,
+  LangGraphRuntimeBridgeConfig,
+  PydanticAIRuntimeBridgeConfig,
+} from './runtime-bridges';

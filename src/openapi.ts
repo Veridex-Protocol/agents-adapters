@@ -17,6 +17,10 @@ export interface OpenAPISpec {
   info: { title: string; version: string; description?: string };
   servers?: Array<{ url: string; description?: string }>;
   paths: Record<string, OpenAPIPathItem>;
+  components?: {
+    schemas?: Record<string, Record<string, unknown>>;
+    securitySchemes?: Record<string, Record<string, unknown>>;
+  };
 }
 
 export interface OpenAPIPathItem {
@@ -37,6 +41,7 @@ export interface OpenAPIOperation {
   };
   responses?: Record<string, unknown>;
   tags?: string[];
+  security?: Array<Record<string, string[]>>;
 }
 
 export interface OpenAPIParameter {
@@ -110,7 +115,7 @@ export class OpenAPIImporter {
           }
         }
 
-        const tool = this.operationToTool(path, method, operation, baseUrl);
+        const tool = this.operationToTool(spec, path, method, operation, baseUrl);
         if (tool) {
           tools.push(tool);
         } else {
@@ -133,6 +138,7 @@ export class OpenAPIImporter {
   }
 
   private operationToTool(
+    spec: OpenAPISpec,
     path: string,
     method: string,
     operation: OpenAPIOperation,
@@ -152,14 +158,14 @@ export class OpenAPIImporter {
     const required: string[] = [];
 
     for (const param of operation.parameters ?? []) {
-      properties[param.name] = param.schema ?? { type: 'string' };
+      properties[param.name] = this.resolveSchema(spec, param.schema ?? { type: 'string' });
       if (param.required) required.push(param.name);
     }
 
     if (operation.requestBody?.content) {
       const jsonContent = operation.requestBody.content['application/json'];
       if (jsonContent?.schema) {
-        properties['body'] = jsonContent.schema;
+        properties['body'] = this.resolveSchema(spec, jsonContent.schema);
         required.push('body');
       }
     }
@@ -168,11 +174,13 @@ export class OpenAPIImporter {
     const inputSchema = hasInput
       ? { type: 'object' as const, properties, required }
       : undefined;
+    const outputSchema = this.getResponseSchema(spec, operation);
 
     return {
       name,
       description,
       input: inputSchema ? jsonSchemaToZod(inputSchema) : undefined,
+      output: outputSchema,
       safetyClass,
       execute: createStubExecutor('OpenAPI', rawName),
       metadata: {
@@ -181,8 +189,42 @@ export class OpenAPIImporter {
           method,
           baseUrl,
           tags: operation.tags,
+          security: operation.security,
+          operationId: operation.operationId,
         },
       },
     } as ToolContract;
+  }
+
+  private resolveSchema(
+    spec: OpenAPISpec,
+    schema?: Record<string, unknown>,
+  ): Record<string, unknown> {
+    if (!schema) return { type: 'object', properties: {} };
+    const ref = typeof schema.$ref === 'string' ? schema.$ref : undefined;
+    if (!ref) return schema;
+
+    const prefix = '#/components/schemas/';
+    if (!ref.startsWith(prefix)) return schema;
+    const schemaName = ref.slice(prefix.length);
+    return spec.components?.schemas?.[schemaName] ?? schema;
+  }
+
+  private getResponseSchema(
+    spec: OpenAPISpec,
+    operation: OpenAPIOperation,
+  ): Record<string, unknown> | undefined {
+    const response =
+      operation.responses?.['200'] ??
+      operation.responses?.['201'] ??
+      operation.responses?.default;
+
+    if (!response || typeof response !== 'object') {
+      return undefined;
+    }
+
+    const content = (response as { content?: Record<string, { schema?: Record<string, unknown> }> }).content;
+    const jsonSchema = content?.['application/json']?.schema;
+    return jsonSchema ? this.resolveSchema(spec, jsonSchema) : undefined;
   }
 }
