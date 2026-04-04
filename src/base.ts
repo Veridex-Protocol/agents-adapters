@@ -8,6 +8,7 @@
 
 import type { AgentDefinition, ToolContract, ToolSafetyClass } from '@veridex/agents';
 import { z } from 'zod';
+import type { AdapterMode } from './binding';
 
 // ── Base Adapter Interface ──
 
@@ -19,6 +20,8 @@ export interface AdapterConfig {
   preserveMetadata?: boolean;
   /** Custom tool name transform */
   toolNameTransform?: (name: string) => string;
+  /** Adapter mode: 'inspect' for stub-only, 'execute' for bound execution */
+  mode?: AdapterMode;
 }
 
 /** Result of an import operation. */
@@ -90,10 +93,14 @@ export function inferSafetyClass(
  * The actual execution is delegated to the source framework at runtime.
  */
 export function createStubExecutor(frameworkName: string, originalName: string) {
-  return async () => ({
+  const executor = async () => ({
     success: false as const,
     llmOutput: `Tool '${originalName}' was imported from ${frameworkName} and requires the original framework for execution.`,
   });
+  // Mark as stub for mode detection
+  (executor as Record<string, unknown>).__veridex_stub = true;
+  (executor as Record<string, unknown>).__veridex_source = frameworkName;
+  return executor;
 }
 
 /**

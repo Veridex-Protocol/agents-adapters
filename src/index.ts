@@ -67,3 +67,12 @@ export type {
   LangGraphRuntimeBridgeConfig,
   PydanticAIRuntimeBridgeConfig,
 } from './runtime-bridges';
+
+// ── Capability Binding ──
+export { AgentCapabilityBinder } from './binding';
+export type {
+  AdapterMode,
+  CapabilityBinding,
+  BindResult,
+  BinderOptions,
+} from './binding';
