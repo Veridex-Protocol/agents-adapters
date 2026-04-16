@@ -98,8 +98,8 @@ export function createStubExecutor(frameworkName: string, originalName: string) 
     llmOutput: `Tool '${originalName}' was imported from ${frameworkName} and requires the original framework for execution.`,
   });
   // Mark as stub for mode detection
-  (executor as Record<string, unknown>).__veridex_stub = true;
-  (executor as Record<string, unknown>).__veridex_source = frameworkName;
+  (executor as unknown as Record<string, unknown>).__veridex_stub = true;
+  (executor as unknown as Record<string, unknown>).__veridex_source = frameworkName;
   return executor;
 }
 
