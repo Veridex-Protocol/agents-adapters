@@ -19,6 +19,7 @@ import {
   inferSafetyClass,
   createStubExecutor,
   jsonSchemaToZod,
+  PolicyStrippingError,
 } from './base';
 
 // ── LangGraph Types ──
@@ -139,6 +140,10 @@ export class LangGraphAdapter
   exportAgent(definition: AgentDefinition): ExportResult<LangGraphExport> {
     const warnings: string[] = [];
     const droppedFeatures: string[] = [];
+
+    if (definition.policies?.length && !this.config.allowPolicyStripping) {
+      throw new PolicyStrippingError('LangGraph', definition.policies.length);
+    }
 
     if (definition.memory) droppedFeatures.push('memory configuration');
     if (definition.payments) droppedFeatures.push('payment configuration');

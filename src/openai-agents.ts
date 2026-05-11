@@ -20,6 +20,7 @@ import {
   inferSafetyClass,
   createStubExecutor,
   jsonSchemaToZod,
+  PolicyStrippingError,
 } from './base';
 
 // ── OpenAI Agents SDK Types ──
@@ -105,6 +106,10 @@ export class OpenAIAgentsAdapter
   exportAgent(definition: AgentDefinition): ExportResult<OpenAIAgentExport> {
     const warnings: string[] = [];
     const droppedFeatures: string[] = [];
+
+    if (definition.policies?.length && !this.config.allowPolicyStripping) {
+      throw new PolicyStrippingError('OpenAI Agents', definition.policies.length);
+    }
 
     if (definition.memory) droppedFeatures.push('memory configuration');
     if (definition.payments) droppedFeatures.push('payment configuration');

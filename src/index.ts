@@ -13,7 +13,12 @@ export type {
   ImportResult,
   ExportResult,
 } from './base';
-export { inferSafetyClass, jsonSchemaToZod, createStubExecutor } from './base';
+export {
+  inferSafetyClass,
+  jsonSchemaToZod,
+  createStubExecutor,
+  PolicyStrippingError,
+} from './base';
 
 // ── OpenAI Agents SDK ──
 export { OpenAIAgentsAdapter } from './openai-agents';

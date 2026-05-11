@@ -12,6 +12,33 @@ import type { AdapterMode } from './binding';
 
 // ── Base Adapter Interface ──
 
+/**
+ * Thrown when `exportAgent` is called on a definition that has Veridex
+ * policies attached and `allowPolicyStripping` is not explicitly set.
+ *
+ * Policies encode the safety contract enforced by Veridex (spending limits,
+ * safety-class gates, approval thresholds). Target frameworks have no
+ * equivalent enforcement, so exporting silently would cause the resulting
+ * agent to run unconstrained — a critical fail-open.
+ *
+ * Callers who knowingly want to export a policy-less skeleton (e.g., for
+ * inspection or migration) must set `allowPolicyStripping: true` in the
+ * adapter config.
+ */
+export class PolicyStrippingError extends Error {
+  public readonly droppedPolicies: number;
+  constructor(framework: string, droppedPolicies: number) {
+    super(
+      `Refusing to export ${droppedPolicies} Veridex polic${
+        droppedPolicies === 1 ? 'y' : 'ies'
+      } to ${framework}: target framework cannot enforce them, so the exported agent would run unconstrained. ` +
+        `Set AdapterConfig.allowPolicyStripping=true to opt in.`,
+    );
+    this.name = 'PolicyStrippingError';
+    this.droppedPolicies = droppedPolicies;
+  }
+}
+
 /** Configuration for framework adapters. */
 export interface AdapterConfig {
   /** Default safety class for imported tools without explicit classification */
@@ -22,6 +49,14 @@ export interface AdapterConfig {
   toolNameTransform?: (name: string) => string;
   /** Adapter mode: 'inspect' for stub-only, 'execute' for bound execution */
   mode?: AdapterMode;
+  /**
+   * Opt-in: allow `exportAgent` to strip Veridex policies when the target
+   * framework cannot enforce them. Defaults to `false` — a definition with
+   * policies will throw `PolicyStrippingError` on export unless this is set.
+   * Use only when you understand that the exported agent will run WITHOUT
+   * the Veridex policy controls.
+   */
+  allowPolicyStripping?: boolean;
 }
 
 /** Result of an import operation. */

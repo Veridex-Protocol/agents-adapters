@@ -9,6 +9,7 @@ import {
   PydanticAIRuntimeBridge,
   inferSafetyClass,
   jsonSchemaToZod,
+  PolicyStrippingError,
 } from '../src';
 
 // ── inferSafetyClass ──
@@ -406,6 +407,56 @@ describe('AdapterConfig', () => {
     });
     const tool = adapter.importTool({ name: 'anything', description: 'test' });
     expect(tool.safetyClass).toBe('financial');
+  });
+});
+
+// ── Policy stripping guard ──
+
+describe('exportAgent policy guard', () => {
+  const defWithPolicies = {
+    id: 'test',
+    name: 'Test',
+    model: { provider: 'openai' as const, model: 'gpt-4o' },
+    instructions: 'Help',
+    policies: [
+      {
+        type: 'deny-tool',
+        params: { toolName: 'anything' },
+      },
+    ],
+  };
+
+  it('throws PolicyStrippingError from LangGraphAdapter by default', () => {
+    const adapter = new LangGraphAdapter();
+    expect(() => adapter.exportAgent(defWithPolicies)).toThrow(PolicyStrippingError);
+  });
+
+  it('throws PolicyStrippingError from OpenAIAgentsAdapter by default', () => {
+    const adapter = new OpenAIAgentsAdapter();
+    expect(() => adapter.exportAgent(defWithPolicies)).toThrow(PolicyStrippingError);
+  });
+
+  it('throws PolicyStrippingError from PydanticAIAdapter by default', () => {
+    const adapter = new PydanticAIAdapter();
+    expect(() => adapter.exportAgent(defWithPolicies)).toThrow(PolicyStrippingError);
+  });
+
+  it('allows export and reports droppedFeatures when allowPolicyStripping is true', () => {
+    const adapter = new LangGraphAdapter({ allowPolicyStripping: true });
+    const result = adapter.exportAgent(defWithPolicies);
+    expect(result.droppedFeatures).toContain('policy configurations');
+  });
+
+  it('does not throw for definitions without policies', () => {
+    const adapter = new LangGraphAdapter();
+    expect(() =>
+      adapter.exportAgent({
+        id: 'test',
+        name: 'Test',
+        model: { provider: 'openai', model: 'gpt-4o' },
+        instructions: 'Help',
+      }),
+    ).not.toThrow();
   });
 });
 
