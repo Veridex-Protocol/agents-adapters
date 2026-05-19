@@ -1,6 +1,6 @@
 {
   "name": "@veridex/agents-adapters",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Framework adapters for the Veridex Agent Runtime — import/export agents from OpenAI Agents SDK, LangGraph, PydanticAI, and OpenAPI",
   "license": "MIT",
   "author": "Veridex Team",
