@@ -100,7 +100,7 @@ export class OpenAPIImporter {
         // Apply tag filter
         if (this.config.filterTags?.length) {
           const hasTag = operation.tags?.some((t) =>
-            this.config.filterTags!.includes(t),
+            this.config.filterTags?.includes(t),
           );
           if (!hasTag) continue;
         }
@@ -165,7 +165,7 @@ export class OpenAPIImporter {
     if (operation.requestBody?.content) {
       const jsonContent = operation.requestBody.content['application/json'];
       if (jsonContent?.schema) {
-        properties['body'] = this.resolveSchema(spec, jsonContent.schema);
+        properties.body = this.resolveSchema(spec, jsonContent.schema);
         required.push('body');
       }
     }
