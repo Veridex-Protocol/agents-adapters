@@ -34,14 +34,14 @@
     "prepublishOnly": "bun run build"
   },
   "peerDependencies": {
-    "@veridex/agents": "0.1.6"
+    "@veridex/agents": "0.1.7"
   },
   "dependencies": {
     "zod": "^3.22.0"
   },
   "devDependencies": {
     "@types/minimatch": "^5.1.2",
-    "@veridex/agents": "0.1.6",
+    "@veridex/agents": "0.1.7",
     "tsup": "^8.0.0",
     "typescript": "^5.6.3",
     "vitest": "^2.1.0"
